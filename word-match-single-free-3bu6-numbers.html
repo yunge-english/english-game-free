@@ -360,15 +360,6 @@
         .vocab-tag.custom-tag {
             border-style: dashed;
         }
-        .vocab-tag.locked-tag {
-            opacity: 0.5;
-            cursor: not-allowed;
-            border-style: dashed;
-        }
-        .vocab-tag.locked-tag:hover {
-            transform: none;
-            box-shadow: none;
-        }
 
         .vocab-count {
             font-size: 0.7rem;
@@ -672,6 +663,32 @@
             position: relative;
         }
 
+        .brand-watermark {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--glow-primary);
+            opacity: 0.3;
+            text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+            letter-spacing: 1px;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, rgba(0, 229, 255, 0.15) 0%, rgba(79, 195, 247, 0.1) 100%);
+            border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+        }
+
         .level-2 .game-header {
             background: linear-gradient(135deg, rgba(0, 230, 118, 0.15) 0%, rgba(0, 200, 83, 0.1) 100%);
             border-bottom-color: rgba(0, 230, 118, 0.3);
@@ -689,6 +706,11 @@
             background: rgba(0, 230, 118, 0.1);
         }
 
+        .level-2 .brand-watermark {
+            color: var(--glow-success);
+            text-shadow: 0 0 8px rgba(0, 230, 118, 0.2);
+        }
+
         .level-3 .game-header {
             background: linear-gradient(135deg, rgba(255, 215, 64, 0.15) 0%, rgba(255, 179, 0, 0.1) 100%);
             border-bottom-color: rgba(255, 215, 64, 0.3);
@@ -704,6 +726,21 @@
             color: var(--glow-gold);
             border-color: rgba(255, 215, 64, 0.3);
             background: rgba(255, 215, 64, 0.1);
+        }
+
+        .level-3 .brand-watermark {
+            color: var(--glow-gold);
+            text-shadow: 0 0 8px rgba(255, 215, 64, 0.2);
+        }
+
+        .vocab-tag.locked-tag {
+            opacity: 0.5;
+            cursor: not-allowed;
+            border-style: dashed;
+        }
+        .vocab-tag.locked-tag:hover {
+            transform: none;
+            box-shadow: none;
         }
 
         .stats-display {
@@ -1036,7 +1073,7 @@
         .result-screen {
             display: none;
             text-align: center;
-            padding: 50px 20px;
+            padding: 70px 20px 30px 20px;
             /* 微信底栏安全区域 */
             padding-bottom: calc(30px + env(safe-area-inset-bottom, 0px));
         }
@@ -2118,7 +2155,7 @@
         <div class="card start-screen fade-in" id="startScreen">
             <div class="icon-float">◆◇◇</div>
             <h1 class="game-title neon-text">单词消消乐</h1>
-            <p class="game-subtitle">科技炫酷版</p>
+            <p class="game-subtitle">韵哥英语工坊 · 科技炫酷版</p>
             
             <input type="text" class="nickname-input" id="nicknameInput" placeholder="请输入昵称（最多8字）" maxlength="8">
             
@@ -2206,6 +2243,7 @@
                 <div class="header-left">
                     <button class="back-btn" id="backBtn">←</button>
                     <div class="level-badge" id="levelBadge">第1关</div>
+                    <span class="brand-watermark">韵哥英语工坊</span>
                 </div>
             </div>
             <div class="game-body">
@@ -2230,6 +2268,14 @@
 
         <!-- 结果界面 -->
         <div class="card result-screen" id="resultScreen">
+            <!-- 顶部栏 -->
+            <div class="result-header" id="resultHeader">
+                <div class="header-left">
+                    <button class="back-btn" id="resultBackBtn">←</button>
+                    <div class="level-badge" id="resultLevelBadge">第1关</div>
+                    <span class="brand-watermark">韵哥英语工坊</span>
+                </div>
+            </div>
             <div class="result-star" id="resultStar"></div>
             <h2 class="result-title neon-text" id="resultTitle">闯关成功！</h2>
             <div class="result-score" id="resultScore">0/60 分</div>
@@ -2665,6 +2711,22 @@
 
         // ==================== 预设词库 ====================
         const PRESET_VOCABULARIES = {
+            // 三下Unit6 数字主题词汇
+            'unit6': [
+                { en: 'fifteen', cn: '十五' },
+                { en: 'twelve', cn: '十二' },
+                { en: 'fourteen', cn: '十四' },
+                { en: 'thirteen', cn: '十三' },
+                { en: 'eleven', cn: '十一' },
+                { en: 'twenty', cn: '二十' },
+                { en: 'seventeen', cn: '十七' },
+                { en: 'sixteen', cn: '十六' },
+                { en: 'eighteen', cn: '十八' },
+                { en: 'nineteen', cn: '十九' },
+                { en: 'piggy bank', cn: '猪形储钱罐' },
+                { en: 'pay', cn: '付费' },
+                { en: 'back', cn: '回到原处' }
+            ],
             // 食物词汇（默认）
             'food': [
                 { en: 'apple', cn: '苹果', emoji: '🍎', imgPath: './game-images/apple.jpg' },
@@ -2692,22 +2754,6 @@
                 { en: 'dinner', cn: '晚餐', emoji: '🍽', imgPath: './game-images/dinner.jpg' },
                 { en: 'healthy', cn: '健康的', emoji: '💡', imgPath: './game-images/healthy.jpg' },
                 { en: 'yummy', cn: '好吃的', emoji: '🤩', imgPath: './game-images/yummy.jpg' }
-            ],
-            // 三下Unit6 数字主题词汇
-            'unit6': [
-                { en: 'fifteen', cn: '十五' },
-                { en: 'twelve', cn: '十二' },
-                { en: 'fourteen', cn: '十四' },
-                { en: 'thirteen', cn: '十三' },
-                { en: 'eleven', cn: '十一' },
-                { en: 'twenty', cn: '二十' },
-                { en: 'seventeen', cn: '十七' },
-                { en: 'sixteen', cn: '十六' },
-                { en: 'eighteen', cn: '十八' },
-                { en: 'nineteen', cn: '十九' },
-                { en: 'piggy bank', cn: '猪形储钱罐' },
-                { en: 'pay', cn: '付费' },
-                { en: 'back', cn: '回到原处' }
             ],
             // 动物词汇
             'animal': [
@@ -3956,6 +4002,47 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
                 document.getElementById('failCount').textContent = gameState.failCount;
                 document.getElementById('maxCombo').textContent = gameState.maxCombo;
                 document.getElementById('resultTitle').textContent = success ? '闯关成功！' : '时间到！';
+                document.getElementById('resultLevelBadge').textContent = '第' + gameState.currentLevel + '关';
+                // 根据关卡设置顶部栏颜色
+                const resultHeader = document.getElementById('resultHeader');
+                const resultBackBtn = document.getElementById('resultBackBtn');
+                const resultLevelBadge = document.getElementById('resultLevelBadge');
+                const resultWatermark = resultHeader.querySelector('.brand-watermark');
+                resultHeader.className = 'result-header';
+                if (gameState.currentLevel === 2) {
+                    resultHeader.style.background = 'linear-gradient(135deg, rgba(0, 230, 118, 0.15) 0%, rgba(0, 200, 83, 0.1) 100%)';
+                    resultHeader.style.borderBottom = '1px solid rgba(0, 230, 118, 0.3)';
+                    resultBackBtn.style.color = 'var(--glow-success)';
+                    resultBackBtn.style.borderColor = 'rgba(0, 230, 118, 0.3)';
+                    resultBackBtn.style.background = 'rgba(0, 230, 118, 0.1)';
+                    resultLevelBadge.style.color = 'var(--glow-success)';
+                    resultLevelBadge.style.borderColor = 'rgba(0, 230, 118, 0.3)';
+                    resultLevelBadge.style.background = 'rgba(0, 230, 118, 0.1)';
+                    resultWatermark.style.color = 'var(--glow-success)';
+                    resultWatermark.style.textShadow = '0 0 8px rgba(0, 230, 118, 0.2)';
+                } else if (gameState.currentLevel === 3) {
+                    resultHeader.style.background = 'linear-gradient(135deg, rgba(255, 215, 64, 0.15) 0%, rgba(255, 179, 0, 0.1) 100%)';
+                    resultHeader.style.borderBottom = '1px solid rgba(255, 215, 64, 0.3)';
+                    resultBackBtn.style.color = 'var(--glow-gold)';
+                    resultBackBtn.style.borderColor = 'rgba(255, 215, 64, 0.3)';
+                    resultBackBtn.style.background = 'rgba(255, 215, 64, 0.1)';
+                    resultLevelBadge.style.color = 'var(--glow-gold)';
+                    resultLevelBadge.style.borderColor = 'rgba(255, 215, 64, 0.3)';
+                    resultLevelBadge.style.background = 'rgba(255, 215, 64, 0.1)';
+                    resultWatermark.style.color = 'var(--glow-gold)';
+                    resultWatermark.style.textShadow = '0 0 8px rgba(255, 215, 64, 0.2)';
+                } else {
+                    resultHeader.style.background = 'linear-gradient(135deg, rgba(0, 229, 255, 0.15) 0%, rgba(79, 195, 247, 0.1) 100%)';
+                    resultHeader.style.borderBottom = '1px solid rgba(0, 229, 255, 0.3)';
+                    resultBackBtn.style.color = '';
+                    resultBackBtn.style.borderColor = '';
+                    resultBackBtn.style.background = '';
+                    resultLevelBadge.style.color = '';
+                    resultLevelBadge.style.borderColor = '';
+                    resultLevelBadge.style.background = '';
+                    resultWatermark.style.color = '';
+                    resultWatermark.style.textShadow = '';
+                }
                 // 星级评价
                 const resultStarCount = getStarRating(gameState.score, resultMaxScore);
                 document.getElementById('resultStar').textContent = getStarDisplay(resultStarCount);
@@ -4291,10 +4378,18 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
                 tag.addEventListener('click', () => {
                     const vocabKey = tag.dataset.vocab;
                     
-                    if (vocabKey === 'custom') {
-                        // 免费版：自定义词库已锁定
-                        alert('💡 自定义词库为付费功能，获取完整版即可解锁！');
+                    if (tag.classList.contains('locked-tag')) {
+                        // 免费版禁止使用自定义词库
+                        alert('自定义词库为付费功能，升级完整版即可解锁！');
                         return;
+                    }
+                    
+                    if (vocabKey === 'custom') {
+                        // 打开自定义面板
+                        customPanel.classList.add('show');
+                        tag.classList.add('active');
+                        vocabCount.textContent = customVocabList.length > 0 ? `${customVocabList.length}个词汇（已设置）` : '请输入词汇';
+                        vocabCount.classList.add('active');
                     } else {
                         // 选择预设词库
                         customPanel.classList.remove('show');
@@ -4366,13 +4461,13 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
             // 取消自定义词库
             cancelBtn.addEventListener('click', () => {
                 customPanel.classList.remove('show');
-                // 如果没有自定义词库，切换回食物词库
+                // 如果没有自定义词库，切换回数字主题词库
                 if (customVocabList.length === 0) {
                     tags.forEach(t => {
                         t.classList.remove('active');
-                        if (t.dataset.vocab === 'food') t.classList.add('active');
+                        if (t.dataset.vocab === 'unit6') t.classList.add('active');
                     });
-                    currentVocabKey = 'food';
+                    currentVocabKey = 'unit6';
                     vocabCount.textContent = '13个词汇';
                     vocabCount.classList.remove('active');
                 }
@@ -4434,15 +4529,15 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
                         const remainScores = scores.filter(s => s.vocabKey !== vocabKey);
                         localStorage.setItem('matchGameScores', JSON.stringify(remainScores));
                         
-                        // 3. 如果当前选中的就是被删的词库，切回食物
+                        // 3. 如果当前选中的就是被删的词库，切回数字主题
                         if (currentVocabKey === vocabKey) {
-                            currentVocabKey = 'food';
+                            currentVocabKey = 'unit6';
                             customVocabList = [];
                             customVocabListName = '';
-                            const foodTag = container.querySelector('[data-vocab="food"]');
-                            if (foodTag) {
+                            const unit6Tag = container.querySelector('[data-vocab="unit6"]');
+                            if (unit6Tag) {
                                 container.querySelectorAll('.vocab-tag').forEach(t => t.classList.remove('active'));
-                                foodTag.classList.add('active');
+                                unit6Tag.classList.add('active');
                             }
                             document.getElementById('vocabCount').textContent = '13个词汇';
                             document.getElementById('vocabCount').classList.remove('active');
@@ -4450,7 +4545,7 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
                         
                         // 4. 刷新标签和排行榜
                         refreshVocabTags();
-                        renderFullLeaderboard('food');
+                        renderFullLeaderboard('unit6');
                     }
                 });
                 btn.appendChild(deleteBtn);
@@ -4699,6 +4794,11 @@ const BGM_BASE64 = 'SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjEyLjEwMAAAAAAAAAAAAAAA
             });
             
             document.getElementById('homeBtn').addEventListener('click', () => {
+                stopBGM();
+                showScreen('startScreen');
+            });
+            
+            document.getElementById('resultBackBtn').addEventListener('click', () => {
                 stopBGM();
                 showScreen('startScreen');
             });
