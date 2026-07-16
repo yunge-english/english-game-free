@@ -515,7 +515,11 @@ function levenshtein(a, b) {
 
 function judge(target, recognized) {
   target = target.toLowerCase();
-  recognized = recognized.toLowerCase().trim();
+  
+  // 清理识别结果：转小写、去标点、取第一个词
+  recognized = recognized.toLowerCase()
+    .split(/[.,!?\s;:'"()[\]{}]+/)[0]  // 按标点或空格分割，取第一个词
+    .trim();
 
   debugLog(`🔍 判定: 目标="${target}", 识别="${recognized}"`, 'info');
 
