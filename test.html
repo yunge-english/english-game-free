@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语音识别实验 - 2026.07.15</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --card: #16213e;
+    --accent: #0f3460;
+    --text: #e0e0e0;
+    --green: #4caf50;
+    --yellow: #ff9800;
+    --red: #f44336;
+    --blue: #2196f3;
+    --purple: #9c27b0;
+    --gold: #ffd700;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .container { max-width: 700px; margin: 0 auto; }
+  h1 { text-align: center; font-size: 1.5rem; margin-bottom: 8px; }
+  .subtitle { text-align: center; font-size: 0.85rem; color: #888; margin-bottom: 24px; }
+
+  /* 状态栏 */
+  .status-bar {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .status-item { font-size: 0.85rem; }
+  .status-item .label { color: #888; }
+  .status-item .value { font-weight: bold; }
+  .status-ok { color: var(--green); }
+  .status-fail { color: var(--red); }
+
+  /* 进度 */
+  .progress-bar {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .progress-track {
+    flex: 1;
+    height: 8px;
+    background: #333;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--blue), var(--purple));
+    border-radius: 4px;
+    transition: width 0.3s;
+    width: 0%;
+  }
+  .progress-text { font-size: 0.85rem; min-width: 60px; text-align: right; }
+  .score-display { font-size: 1.1rem; font-weight: bold; color: var(--gold); }
+
+  /* 单词卡片 */
+  .word-card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 16px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+  .word-card.active { border: 2px solid var(--blue); }
+  .word-card.perfect { border: 2px solid var(--gold); }
+  .word-card.good { border: 2px solid var(--green); }
+  .word-card.ok { border: 2px solid var(--blue); }
+  .word-card.try-harder { border: 2px solid var(--yellow); }
+  .word-card.retry { border: 2px solid var(--red); }
+
+  .word-index { font-size: 0.8rem; color: #888; margin-bottom: 8px; }
+  .word-text { font-size: 2rem; font-weight: bold; margin-bottom: 6px; letter-spacing: 2px; }
+  .word-length { font-size: 0.75rem; color: #666; margin-bottom: 16px; }
+
+  .mic-btn {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    color: white;
+    font-size: 28px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .mic-btn:hover { transform: scale(1.08); }
+  .mic-btn:active { transform: scale(0.95); }
+  .mic-btn.recording {
+    background: linear-gradient(135deg, var(--red), #e91e63);
+    animation: pulse 1s infinite;
+  }
+  .mic-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(244,67,54,0.5); }
+    50% { box-shadow: 0 0 0 12px rgba(244,67,54,0); }
+  }
+  .mic-hint { font-size: 0.8rem; color: #888; margin-top: 10px; }
+
+  /* 识别结果 */
+  .result-area {
+    margin-top: 16px;
+    padding: 14px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 10px;
+    display: none;
+  }
+  .result-area.show { display: block; }
+  .result-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .result-label { font-size: 0.8rem; color: #888; }
+  .result-value { font-size: 0.95rem; font-weight: bold; }
+
+  .tier-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+  }
+  .tier-5 { background: rgba(255,215,0,0.2); color: var(--gold); }
+  .tier-4 { background: rgba(76,175,80,0.2); color: var(--green); }
+  .tier-3 { background: rgba(33,150,243,0.2); color: var(--blue); }
+  .tier-2 { background: rgba(255,152,0,0.2); color: var(--yellow); }
+  .tier-1 { background: rgba(244,67,54,0.2); color: var(--red); }
+
+  /* 历史记录 */
+  .history {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 18px;
+    margin-top: 16px;
+  }
+  .history h3 { font-size: 1rem; margin-bottom: 12px; }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.85rem;
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-word { font-weight: bold; min-width: 90px; }
+  .history-recognized { color: #aaa; flex: 1; text-align: center; }
+  .history-score { font-weight: bold; min-width: 50px; text-align: right; }
+
+  /* 汇总页 */
+  .summary {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 28px;
+    text-align: center;
+    display: none;
+  }
+  .summary.show { display: block; }
+  .summary-score { font-size: 3rem; font-weight: bold; color: var(--gold); }
+  .summary-label { font-size: 0.9rem; color: #888; margin-bottom: 20px; }
+  .summary-detail { text-align: left; margin-top: 20px; }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .summary-row:last-child { border-bottom: none; }
+
+  .btn-reset {
+    margin-top: 20px;
+    padding: 12px 32px;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .btn-reset:hover { opacity: 0.9; }
+
+  /* 不支持提示 */
+  .not-supported {
+    background: rgba(244,67,54,0.15);
+    border: 1px solid var(--red);
+    border-radius: 12px;
+    padding: 24px;
+    text-align: center;
+  }
+  .not-supported h2 { color: var(--red); margin-bottom: 10px; }
+  .not-supported p { color: #ccc; font-size: 0.9rem; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🎤 语音识别实验</h1>
+  <p class="subtitle">三关背单词 L2 · 浏览器原生 SpeechRecognition · 2026.07.15</p>
+  <div style="text-align:center;margin-bottom:20px;">
+    <button onclick="downloadPage()" style="padding:10px 24px;background:linear-gradient(135deg,#2196f3,#9c27b0);border:none;border-radius:8px;color:white;font-size:0.95rem;cursor:pointer;">📥 下载本页面到本地（然后用Chrome打开）</button>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-item">
+      <span class="label">浏览器支持：</span>
+      <span class="value" id="supportStatus">检测中...</span>
+    </div>
+    <div class="status-item">
+      <span class="label">浏览器：</span>
+      <span class="value" id="browserInfo">-</span>
+    </div>
+  </div>
+
+  <!-- 不支持提示 -->
+  <div class="not-supported" id="notSupported" style="display:none;">
+    <h2>❌ 当前浏览器不支持语音识别</h2>
+    <p>建议使用 <strong>Chrome</strong> 或 <strong>Edge</strong> 浏览器打开本页面。<br>
+    Safari iOS / 微信内置浏览器不支持此功能。</p>
+  </div>
+
+  <!-- 主测试区 -->
+  <div id="testArea">
+    <!-- 进度条 -->
+    <div class="progress-bar">
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">0 / 10</div>
+      <div class="score-display" id="totalScore">0分</div>
+    </div>
+
+    <!-- 当前单词卡 -->
+    <div class="word-card" id="wordCard">
+      <div class="word-index" id="wordIndex">第 1 / 10 词</div>
+      <div class="word-text" id="wordText">cat</div>
+      <div class="word-length" id="wordLength">3 字母</div>
+      <button class="mic-btn" id="micBtn" onclick="toggleRecording()">🎤</button>
+      <div class="mic-hint" id="micHint">点击开始录音，再点停止</div>
+
+      <div class="result-area" id="resultArea">
+        <div class="result-row">
+          <span class="result-label">识别结果</span>
+          <span class="result-value" id="recognizedText">-</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">编辑距离</span>
+          <span class="result-value" id="editDistance">-</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">相似度</span>
+          <span class="result-value" id="similarity">-</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">判定</span>
+          <span id="tierBadge">-</span>
+        </div>
+        <div class="result-row">
+          <span class="result-label">得分</span>
+          <span class="result-value" id="wordScore" style="color:var(--gold)">-</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 历史记录 -->
+    <div class="history" id="historyArea" style="display:none;">
+      <h3>📋 测试记录</h3>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- 汇总页 -->
+    <div class="summary" id="summaryArea">
+      <div class="summary-score" id="finalScore">0</div>
+      <div class="summary-label">总分（满分100）</div>
+      <div class="summary-detail" id="summaryDetail"></div>
+      <button class="btn-reset" onclick="downloadReport()">📥 下载报告</button>
+      <button class="btn-reset" onclick="resetTest()" style="margin-left:8px;background:rgba(255,255,255,0.1);">🔄 重新测试</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== 测试词表 ==========
+const WORDS = [
+  { word: 'cat', length: 3 },
+  { word: 'pen', length: 3 },
+  { word: 'dog', length: 3 },
+  { word: 'apple', length: 5 },
+  { word: 'tiger', length: 5 },
+  { word: 'orange', length: 6 },
+  { word: 'banana', length: 6 },
+  { word: 'rabbit', length: 6 },
+  { word: 'elephant', length: 8 },
+  { word: 'watermelon', length: 10 }
+];
+
+let currentIndex = 0;
+let totalScore = 0;
+let results = [];
+let isRecording = false;
+let recognition = null;
+
+// ========== 初始化 ==========
+function init() {
+  // 检测浏览器
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const supportEl = document.getElementById('supportStatus');
+  const browserEl = document.getElementById('browserInfo');
+
+  browserEl.textContent = getBrowserName();
+
+  if (!SR) {
+    supportEl.textContent = '❌ 不支持';
+    supportEl.className = 'value status-fail';
+    document.getElementById('testArea').style.display = 'none';
+    document.getElementById('notSupported').style.display = 'block';
+    return;
+  }
+
+  supportEl.textContent = '✅ 支持';
+  supportEl.className = 'value status-ok';
+
+  // 创建 recognition 实例
+  recognition = new SR();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript.trim();
+    handleResult(transcript);
+  };
+
+  recognition.onerror = (e) => {
+    stopRecording();
+    if (e.error === 'no-speech') {
+      handleResult('');
+    } else if (e.error === 'not-allowed') {
+      alert('麦克风权限被拒绝，请允许麦克风访问后重试。');
+    } else {
+      handleResult('');
+    }
+  };
+
+  recognition.onend = () => {
+    if (isRecording) stopRecording();
+  };
+
+  showWord();
+}
+
+// ========== 编辑距离 ==========
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const dp = [];
+  for (let i = 0; i <= m; i++) {
+    dp[i] = [];
+    for (let j = 0; j <= n; j++) {
+      if (i === 0) dp[i][j] = j;
+      else if (j === 0) dp[i][j] = i;
+      else dp[i][j] = 0;
+    }
+  }
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i-1] === b[j-1]) {
+        dp[i][j] = dp[i-1][j-1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
+function judge(target, recognized) {
+  target = target.toLowerCase();
+  recognized = recognized.toLowerCase().trim();
+
+  // 每词满分10分，10词总分100
+  if (!recognized) {
+    return { tier: 1, score: 2, distance: target.length, similarity: 0 };
+  }
+
+  const dist = levenshtein(target, recognized);
+  const similarity = Math.round((1 - dist / target.length) * 100);
+
+  // 短词保护：3字母及以下，距离≤1算4档
+  if (target.length <= 3 && dist <= 1) {
+    return { tier: 4, score: 8, distance: dist, similarity };
+  }
+
+  if (dist === 0) return { tier: 5, score: 10, distance: 0, similarity: 100 };
+  if (dist <= target.length * 0.1) return { tier: 4, score: 8, distance: dist, similarity };
+  if (dist <= target.length * 0.25) return { tier: 3, score: 6, distance: dist, similarity };
+  if (dist <= target.length * 0.5) return { tier: 2, score: 4, distance: dist, similarity };
+  return { tier: 1, score: 2, distance: dist, similarity };
+}
+
+// ========== 录音控制 ==========
+function toggleRecording() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    startRecording();
+  }
+}
+
+function startRecording() {
+  if (!recognition) return;
+  isRecording = true;
+  document.getElementById('micBtn').classList.add('recording');
+  document.getElementById('micHint').textContent = '🔴 正在录音...再点停止';
+  document.getElementById('resultArea').classList.remove('show');
+  try { recognition.start(); } catch(e) { /* already started */ }
+}
+
+function stopRecording() {
+  isRecording = false;
+  document.getElementById('micBtn').classList.remove('recording');
+  document.getElementById('micHint').textContent = '点击开始录音，再点停止';
+  try { recognition.stop(); } catch(e) {}
+}
+
+// ========== 处理结果 ==========
+function handleResult(transcript) {
+  const current = WORDS[currentIndex];
+  const result = judge(current.word, transcript);
+
+  // 显示结果
+  document.getElementById('recognizedText').textContent = transcript || '（未识别到）';
+  document.getElementById('editDistance').textContent = result.distance;
+  document.getElementById('similarity').textContent = result.similarity + '%';
+  document.getElementById('wordScore').textContent = result.score + '分';
+
+  const tierNames = ['', '🔄 再试一次', '💪 需努力', '👍 良好', '👏 优秀', '🌟 完美'];
+  const badge = document.getElementById('tierBadge');
+  badge.textContent = tierNames[result.tier];
+  badge.className = 'tier-badge tier-' + result.tier;
+
+  document.getElementById('resultArea').classList.add('show');
+
+  // 卡片颜色
+  const card = document.getElementById('wordCard');
+  card.className = 'word-card ' + ['', 'retry', 'try-harder', 'ok', 'good', 'perfect'][result.tier];
+
+  // 记录
+  totalScore += result.score;
+  results.push({
+    word: current.word,
+    recognized: transcript || '（空）',
+    tier: result.tier,
+    score: result.score,
+    distance: result.distance,
+    similarity: result.similarity
+  });
+
+  // 更新进度
+  updateProgress();
+  updateHistory();
+
+  // 禁用按钮，1.5秒后自动下一题
+  document.getElementById('micBtn').disabled = true;
+  setTimeout(() => {
+    document.getElementById('micBtn').disabled = false;
+    nextWord();
+  }, 2000);
+}
+
+function nextWord() {
+  currentIndex++;
+  if (currentIndex >= WORDS.length) {
+    showSummary();
+  } else {
+    showWord();
+  }
+}
+
+function showWord() {
+  const current = WORDS[currentIndex];
+  document.getElementById('wordIndex').textContent = `第 ${currentIndex + 1} / ${WORDS.length} 词`;
+  document.getElementById('wordText').textContent = current.word;
+  document.getElementById('wordLength').textContent = `${current.word.length} 字母`;
+  document.getElementById('resultArea').classList.remove('show');
+  document.getElementById('wordCard').className = 'word-card active';
+}
+
+function updateProgress() {
+  const pct = ((currentIndex + 1) / WORDS.length) * 100;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `${currentIndex + 1} / ${WORDS.length}`;
+  document.getElementById('totalScore').textContent = totalScore + '分';
+}
+
+function updateHistory() {
+  const area = document.getElementById('historyArea');
+  const list = document.getElementById('historyList');
+  area.style.display = 'block';
+
+  const tierNames = ['', '再试', '需努力', '良好', '优秀', '完美'];
+  const tierColors = ['', 'var(--red)', 'var(--yellow)', 'var(--blue)', 'var(--green)', 'var(--gold)'];
+
+  list.innerHTML = results.map((r, i) => `
+    <div class="history-item">
+      <span class="history-word">${i + 1}. ${r.word}</span>
+      <span class="history-recognized">"${r.recognized}" → ${tierNames[r.tier]}</span>
+      <span class="history-score" style="color:${tierColors[r.tier]}">${r.score}分</span>
+    </div>
+  `).join('');
+}
+
+function showSummary() {
+  document.getElementById('wordCard').style.display = 'none';
+  document.getElementById('historyArea').style.display = 'none';
+  const summary = document.getElementById('summaryArea');
+  summary.classList.add('show');
+  document.getElementById('finalScore').textContent = totalScore;
+
+  const tierNames = ['', '🔄 再试一次', '💪 需努力', '👍 良好', '👏 优秀', '🌟 完美'];
+  const tierColors = ['', 'var(--red)', 'var(--yellow)', 'var(--blue)', 'var(--green)', 'var(--gold)'];
+
+  // 统计各档数量
+  const tierCount = [0, 0, 0, 0, 0, 0];
+  results.forEach(r => tierCount[r.tier]++);
+
+  let detailHTML = '';
+  // 准确率
+  const accuracy = results.filter(r => r.tier >= 3).length;
+  detailHTML += `<div class="summary-row"><span>达标词数（≥3档）</span><span style="color:var(--green)">${accuracy} / ${WORDS.length}</span></div>`;
+  detailHTML += `<div class="summary-row"><span>准确率</span><span style="color:var(--gold)">${Math.round(accuracy / WORDS.length * 100)}%</span></div>`;
+  detailHTML += `<div class="summary-row"><span>验收标准</span><span style="color:${accuracy >= 8 ? 'var(--green)' : 'var(--red)'}">${accuracy >= 8 ? '✅ 达标' : '❌ 未达标'}（≥80%）</span></div>`;
+
+  detailHTML += `<div class="summary-row"><span>档位分布</span><span>`;
+  for (let i = 5; i >= 1; i--) {
+    if (tierCount[i] > 0) detailHTML += `${tierNames[i]}×${tierCount[i]} `;
+  }
+  detailHTML += `</span></div>`;
+
+  // 详细列表
+  detailHTML += `<div style="margin-top:16px;">`;
+  results.forEach((r, i) => {
+    detailHTML += `<div class="summary-row">
+      <span>${i + 1}. ${r.word} <span style="color:#666">(${r.word.length}字母)</span></span>
+      <span>"${r.recognized}" <span style="color:${tierColors[r.tier]}">${tierNames[r.tier]} ${r.score}分</span></span>
+    </div>`;
+  });
+  detailHTML += `</div>`;
+
+  // 浏览器信息
+  detailHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.8rem;color:#888;">
+    浏览器：${getBrowserName()} | 平台：${navigator.platform} | 语言：${navigator.language}
+  </div>`;
+
+  document.getElementById('summaryDetail').innerHTML = detailHTML;
+}
+
+function resetTest() {
+  currentIndex = 0;
+  totalScore = 0;
+  results = [];
+  document.getElementById('wordCard').style.display = '';
+  document.getElementById('summaryArea').classList.remove('show');
+  document.getElementById('historyArea').style.display = 'none';
+  document.getElementById('historyList').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('totalScore').textContent = '0分';
+  showWord();
+}
+
+function getBrowserName() {
+  const ua = navigator.userAgent;
+  if (ua.includes('Edg')) return 'Edge';
+  if (ua.includes('Chrome') && !ua.includes('Edg')) return 'Chrome';
+  if (ua.includes('Firefox')) return 'Firefox';
+  if (ua.includes('Safari') && !ua.includes('Chrome')) return 'Safari';
+  if (ua.includes('MicroMessenger')) return '微信内置';
+  return ua.substring(0, 30);
+}
+
+// ========== 下载本页面 ==========
+function downloadPage() {
+  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '语音识别实验页-20260715.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ========== 下载报告 ==========
+function downloadReport() {
+  const tierNames = ['', '再试一次', '需努力', '良好', '优秀', '完美'];
+  const accuracy = results.filter(r => r.tier >= 3).length;
+  
+  let text = '=== 语音识别实验报告 ===\n';
+  text += `日期：${new Date().toLocaleString('zh-CN')}\n`;
+  text += `浏览器：${getBrowserName()}\n`;
+  text += `平台：${navigator.platform}\n`;
+  text += `语言：${navigator.language}\n`;
+  text += `屏幕：${screen.width}×${screen.height}\n`;
+  text += `\n--- 总分：${totalScore} / 100 ---\n`;
+  text += `达标词数（≥3档）：${accuracy} / ${WORDS.length}\n`;
+  text += `准确率：${Math.round(accuracy / WORDS.length * 100)}%\n`;
+  text += `验收结果：${accuracy >= 8 ? '✅ 达标（≥80%）' : '❌ 未达标（≥80%）'}\n`;
+  text += `\n--- 详细结果 ---\n`;
+  text += '序号\t单词\t字母数\t识别结果\t编辑距离\t相似度\t档位\t得分\n';
+  
+  results.forEach((r, i) => {
+    text += `${i+1}\t${r.word}\t${WORDS[i].word.length}\t"${r.recognized}"\t${r.distance}\t${r.similarity}%\t${tierNames[r.tier]}\t${r.score}分\n`;
+  });
+  
+  text += `\n--- 档位分布 ---\n`;
+  const tierCount = [0,0,0,0,0,0];
+  results.forEach(r => tierCount[r.tier]++);
+  for (let i = 5; i >= 1; i--) {
+    if (tierCount[i] > 0) text += `${tierNames[i]}：${tierCount[i]}个\n`;
+  }
+  
+  text += `\n--- 备注 ---\n`;
+  text += '实验页版本：语音识别实验页-20260715.html\n';
+  text += '判定算法：编辑距离（Levenshtein Distance），不依赖浏览器confidence值\n';
+  text += '短词保护：3字母及以下，编辑距离≤1算4档（优秀）\n';
+  
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `语音识别实验报告-${new Date().toISOString().slice(0,10)}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ========== 环境检测 ==========
+function checkEnvironment() {
+  const warnings = [];
+  
+  // 检测 HTTPS
+  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    warnings.push('⚠️ 当前非 HTTPS 环境，语音识别可能无法使用。请通过 HTTPS 或 localhost 访问。');
+  }
+  
+  // 检测联网
+  if (!navigator.onLine) {
+    warnings.push('⚠️ 当前未联网，语音识别需要网络（Chrome/Edge 走 Google 服务器）。');
+  }
+  
+  if (warnings.length > 0) {
+    const warnDiv = document.createElement('div');
+    warnDiv.style.cssText = 'background:rgba(255,152,0,0.15);border:1px solid var(--yellow);border-radius:12px;padding:14px 18px;margin-bottom:16px;font-size:0.85rem;line-height:1.6;color:var(--yellow);';
+    warnDiv.innerHTML = warnings.join('<br>');
+    document.querySelector('.container').insertBefore(warnDiv, document.getElementById('statusBar'));
+  }
+}
+
+// 启动
+checkEnvironment();
+init();
+</script>
+</body>
+</html>
