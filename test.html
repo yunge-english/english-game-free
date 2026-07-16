@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>语音识别实验 - 2026.07.15</title>
+<title>语音识别实验-调试版 - 2026.07.16</title>
 <style>
   :root {
     --bg: #1a1a2e;
@@ -46,6 +46,34 @@
   .status-item .value { font-weight: bold; }
   .status-ok { color: var(--green); }
   .status-fail { color: var(--red); }
+
+  /* 调试面板 */
+  .debug-panel {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    font-size: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .debug-title {
+    color: var(--yellow);
+    font-weight: bold;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .debug-log {
+    color: #8b949e;
+    line-height: 1.6;
+  }
+  .debug-log .info { color: var(--blue); }
+  .debug-log .success { color: var(--green); }
+  .debug-log .warn { color: var(--yellow); }
+  .debug-log .error { color: var(--red); }
+  .debug-log .event { color: var(--purple); }
 
   /* 进度 */
   .progress-bar {
@@ -211,11 +239,8 @@
 </head>
 <body>
 <div class="container">
-  <h1>🎤 语音识别实验</h1>
-  <p class="subtitle">三关背单词 L2 · 浏览器原生 SpeechRecognition · 2026.07.15</p>
-  <div style="text-align:center;margin-bottom:20px;">
-    <button onclick="downloadPage()" style="padding:10px 24px;background:linear-gradient(135deg,#2196f3,#9c27b0);border:none;border-radius:8px;color:white;font-size:0.95rem;cursor:pointer;">📥 下载本页面到本地（然后用Chrome打开）</button>
-  </div>
+  <h1>🎤 语音识别实验-调试版</h1>
+  <p class="subtitle">三关背单词 L2 · 2026.07.16 · 带诊断信息</p>
 
   <!-- 状态栏 -->
   <div class="status-bar" id="statusBar">
@@ -227,6 +252,16 @@
       <span class="label">浏览器：</span>
       <span class="value" id="browserInfo">-</span>
     </div>
+    <div class="status-item">
+      <span class="label">协议：</span>
+      <span class="value" id="protocolInfo">-</span>
+    </div>
+  </div>
+
+  <!-- 调试面板 -->
+  <div class="debug-panel">
+    <div class="debug-title">🔍 调试日志（实时显示所有事件）</div>
+    <div class="debug-log" id="debugLog"></div>
   </div>
 
   <!-- 不支持提示 -->
@@ -288,13 +323,24 @@
       <div class="summary-score" id="finalScore">0</div>
       <div class="summary-label">总分（满分100）</div>
       <div class="summary-detail" id="summaryDetail"></div>
-      <button class="btn-reset" onclick="downloadReport()">📥 下载报告</button>
-      <button class="btn-reset" onclick="resetTest()" style="margin-left:8px;background:rgba(255,255,255,0.1);">🔄 重新测试</button>
+      <button class="btn-reset" onclick="resetTest()">🔄 重新测试</button>
     </div>
   </div>
 </div>
 
 <script>
+// ========== 调试日志 ==========
+function debugLog(msg, type = 'info') {
+  const log = document.getElementById('debugLog');
+  const time = new Date().toLocaleTimeString('zh-CN', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3});
+  const div = document.createElement('div');
+  div.className = type;
+  div.textContent = `[${time}] ${msg}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  console.log(`[${type}] ${msg}`);
+}
+
 // ========== 测试词表 ==========
 const WORDS = [
   { word: 'cat', length: 3 },
@@ -317,50 +363,127 @@ let recognition = null;
 
 // ========== 初始化 ==========
 function init() {
+  debugLog('🚀 开始初始化...', 'info');
+  
   // 检测浏览器
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const supportEl = document.getElementById('supportStatus');
   const browserEl = document.getElementById('browserInfo');
+  const protocolEl = document.getElementById('protocolInfo');
 
   browserEl.textContent = getBrowserName();
+  protocolEl.textContent = location.protocol;
+  
+  debugLog(`浏览器: ${getBrowserName()}`, 'info');
+  debugLog(`协议: ${location.protocol}`, 'info');
+  debugLog(`主机: ${location.hostname}`, 'info');
+  debugLog(`平台: ${navigator.platform}`, 'info');
+  debugLog(`语言: ${navigator.language}`, 'info');
+  debugLog(`在线状态: ${navigator.onLine ? '是' : '否'}`, 'info');
 
   if (!SR) {
     supportEl.textContent = '❌ 不支持';
     supportEl.className = 'value status-fail';
     document.getElementById('testArea').style.display = 'none';
     document.getElementById('notSupported').style.display = 'block';
+    debugLog('❌ 浏览器不支持 SpeechRecognition API', 'error');
     return;
   }
 
   supportEl.textContent = '✅ 支持';
   supportEl.className = 'value status-ok';
+  debugLog('✅ SpeechRecognition API 可用', 'success');
 
   // 创建 recognition 实例
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.continuous = false;
   recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  debugLog(`语言设置: ${recognition.lang}`, 'info');
+  debugLog(`连续模式: ${recognition.continuous}`, 'info');
+
+  // 绑定事件
+  recognition.onstart = () => {
+    debugLog('🎤 录音开始 (onstart)', 'event');
+  };
+
+  recognition.onaudiostart = () => {
+    debugLog('🎵 检测到音频 (onaudiostart)', 'event');
+  };
+
+  recognition.onsoundstart = () => {
+    debugLog('🔊 检测到声音 (onsoundstart)', 'event');
+  };
+
+  recognition.onspeechstart = () => {
+    debugLog('🗣️ 检测到语音开始 (onspeechstart)', 'event');
+  };
+
+  recognition.onspeechend = () => {
+    debugLog('🤫 检测到语音结束 (onspeechend)', 'event');
+  };
+
+  recognition.onsoundend = () => {
+    debugLog('🔇 声音结束 (onsoundend)', 'event');
+  };
+
+  recognition.onaudioend = () => {
+    debugLog('🎵 音频结束 (onaudioend)', 'event');
+  };
 
   recognition.onresult = (e) => {
+    debugLog(`📝 收到识别结果 (onresult)`, 'success');
+    debugLog(`   - 结果数量: ${e.results.length}`, 'info');
+    debugLog(`   - 是否最终结果: ${e.results[0].isFinal}`, 'info');
+    
     const transcript = e.results[0][0].transcript.trim();
+    const confidence = e.results[0][0].confidence;
+    
+    debugLog(`   - 识别文本: "${transcript}"`, 'success');
+    debugLog(`   - 置信度: ${confidence !== undefined ? (confidence * 100).toFixed(1) + '%' : '未提供'}`, 'info');
+    
     handleResult(transcript);
   };
 
   recognition.onerror = (e) => {
+    debugLog(`❌ 识别错误 (onerror)`, 'error');
+    debugLog(`   - 错误类型: ${e.error}`, 'error');
+    debugLog(`   - 错误消息: ${e.message || '无'}`, 'error');
+    
     stopRecording();
+    
     if (e.error === 'no-speech') {
+      debugLog('   - 说明: 没有检测到语音', 'warn');
+      handleResult('');
+    } else if (e.error === 'audio-capture') {
+      debugLog('   - 说明: 麦克风录音失败', 'error');
+      alert('麦克风录音失败，请检查麦克风是否正常工作。');
       handleResult('');
     } else if (e.error === 'not-allowed') {
+      debugLog('   - 说明: 麦克风权限被拒绝', 'error');
       alert('麦克风权限被拒绝，请允许麦克风访问后重试。');
+      handleResult('');
+    } else if (e.error === 'network') {
+      debugLog('   - 说明: 网络错误，无法连接识别服务器', 'error');
+      alert('网络错误：语音识别需要访问服务器，请检查网络连接。');
+      handleResult('');
+    } else if (e.error === 'aborted') {
+      debugLog('   - 说明: 识别被中止', 'warn');
+      handleResult('');
     } else {
+      debugLog('   - 说明: 未知错误', 'error');
       handleResult('');
     }
   };
 
   recognition.onend = () => {
+    debugLog('🏁 识别结束 (onend)', 'event');
     if (isRecording) stopRecording();
   };
 
+  debugLog('✅ 事件监听器绑定完成', 'success');
   showWord();
 }
 
@@ -394,28 +517,50 @@ function judge(target, recognized) {
   target = target.toLowerCase();
   recognized = recognized.toLowerCase().trim();
 
-  // 每词满分10分，10词总分100
+  debugLog(`🔍 判定: 目标="${target}", 识别="${recognized}"`, 'info');
+
   if (!recognized) {
-    return { tier: 1, score: 2, distance: target.length, similarity: 0 };
+    const result = { tier: 1, score: 2, distance: target.length, similarity: 0 };
+    debugLog(`   - 识别为空 → 1档(${result.score}分)`, 'warn');
+    return result;
   }
 
   const dist = levenshtein(target, recognized);
   const similarity = Math.round((1 - dist / target.length) * 100);
+  
+  debugLog(`   - 编辑距离: ${dist}`, 'info');
+  debugLog(`   - 相似度: ${similarity}%`, 'info');
 
   // 短词保护：3字母及以下，距离≤1算4档
   if (target.length <= 3 && dist <= 1) {
+    debugLog(`   - 短词保护 → 4档(8分)`, 'success');
     return { tier: 4, score: 8, distance: dist, similarity };
   }
 
-  if (dist === 0) return { tier: 5, score: 10, distance: 0, similarity: 100 };
-  if (dist <= target.length * 0.1) return { tier: 4, score: 8, distance: dist, similarity };
-  if (dist <= target.length * 0.25) return { tier: 3, score: 6, distance: dist, similarity };
-  if (dist <= target.length * 0.5) return { tier: 2, score: 4, distance: dist, similarity };
+  if (dist === 0) {
+    debugLog(`   - 完全匹配 → 5档(10分)`, 'success');
+    return { tier: 5, score: 10, distance: 0, similarity: 100 };
+  }
+  if (dist <= target.length * 0.1) {
+    debugLog(`   - 距离≤10% → 4档(8分)`, 'success');
+    return { tier: 4, score: 8, distance: dist, similarity };
+  }
+  if (dist <= target.length * 0.25) {
+    debugLog(`   - 距离≤25% → 3档(6分)`, 'info');
+    return { tier: 3, score: 6, distance: dist, similarity };
+  }
+  if (dist <= target.length * 0.5) {
+    debugLog(`   - 距离≤50% → 2档(4分)`, 'warn');
+    return { tier: 2, score: 4, distance: dist, similarity };
+  }
+  
+  debugLog(`   - 距离>50% → 1档(2分)`, 'warn');
   return { tier: 1, score: 2, distance: dist, similarity };
 }
 
 // ========== 录音控制 ==========
 function toggleRecording() {
+  debugLog(`🖱️ 点击麦克风按钮 (当前状态: ${isRecording ? '录音中' : '空闲'})`, 'info');
   if (isRecording) {
     stopRecording();
   } else {
@@ -424,23 +569,43 @@ function toggleRecording() {
 }
 
 function startRecording() {
-  if (!recognition) return;
+  if (!recognition) {
+    debugLog('❌ recognition 实例不存在', 'error');
+    return;
+  }
+  
+  debugLog('▶️ 开始录音...', 'info');
   isRecording = true;
   document.getElementById('micBtn').classList.add('recording');
   document.getElementById('micHint').textContent = '🔴 正在录音...再点停止';
   document.getElementById('resultArea').classList.remove('show');
-  try { recognition.start(); } catch(e) { /* already started */ }
+  
+  try { 
+    recognition.start(); 
+    debugLog('✅ recognition.start() 调用成功', 'success');
+  } catch(e) { 
+    debugLog(`❌ recognition.start() 抛出异常: ${e.message}`, 'error');
+  }
 }
 
 function stopRecording() {
+  debugLog('⏹️ 停止录音...', 'info');
   isRecording = false;
   document.getElementById('micBtn').classList.remove('recording');
   document.getElementById('micHint').textContent = '点击开始录音，再点停止';
-  try { recognition.stop(); } catch(e) {}
+  
+  try { 
+    recognition.stop(); 
+    debugLog('✅ recognition.stop() 调用成功', 'success');
+  } catch(e) {
+    debugLog(`❌ recognition.stop() 抛出异常: ${e.message}`, 'error');
+  }
 }
 
 // ========== 处理结果 ==========
 function handleResult(transcript) {
+  debugLog(`📊 处理结果: "${transcript || '(空)'}"`, 'info');
+  
   const current = WORDS[currentIndex];
   const result = judge(current.word, transcript);
 
@@ -476,8 +641,10 @@ function handleResult(transcript) {
   updateProgress();
   updateHistory();
 
-  // 禁用按钮，1.5秒后自动下一题
+  // 禁用按钮，2秒后自动下一题
   document.getElementById('micBtn').disabled = true;
+  debugLog(`⏳ 2秒后自动进入下一题...`, 'info');
+  
   setTimeout(() => {
     document.getElementById('micBtn').disabled = false;
     nextWord();
@@ -486,7 +653,9 @@ function handleResult(transcript) {
 
 function nextWord() {
   currentIndex++;
+  debugLog(`➡️ 进入第 ${currentIndex + 1} 词`, 'info');
   if (currentIndex >= WORDS.length) {
+    debugLog('🎉 所有单词测试完成！', 'success');
     showSummary();
   } else {
     showWord();
@@ -536,12 +705,10 @@ function showSummary() {
   const tierNames = ['', '🔄 再试一次', '💪 需努力', '👍 良好', '👏 优秀', '🌟 完美'];
   const tierColors = ['', 'var(--red)', 'var(--yellow)', 'var(--blue)', 'var(--green)', 'var(--gold)'];
 
-  // 统计各档数量
   const tierCount = [0, 0, 0, 0, 0, 0];
   results.forEach(r => tierCount[r.tier]++);
 
   let detailHTML = '';
-  // 准确率
   const accuracy = results.filter(r => r.tier >= 3).length;
   detailHTML += `<div class="summary-row"><span>达标词数（≥3档）</span><span style="color:var(--green)">${accuracy} / ${WORDS.length}</span></div>`;
   detailHTML += `<div class="summary-row"><span>准确率</span><span style="color:var(--gold)">${Math.round(accuracy / WORDS.length * 100)}%</span></div>`;
@@ -553,7 +720,6 @@ function showSummary() {
   }
   detailHTML += `</span></div>`;
 
-  // 详细列表
   detailHTML += `<div style="margin-top:16px;">`;
   results.forEach((r, i) => {
     detailHTML += `<div class="summary-row">
@@ -563,15 +729,15 @@ function showSummary() {
   });
   detailHTML += `</div>`;
 
-  // 浏览器信息
   detailHTML += `<div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);font-size:0.8rem;color:#888;">
-    浏览器：${getBrowserName()} | 平台：${navigator.platform} | 语言：${navigator.language}
+    浏览器：${getBrowserName()} | 平台：${navigator.platform} | 语言：${navigator.language} | 协议：${location.protocol}
   </div>`;
 
   document.getElementById('summaryDetail').innerHTML = detailHTML;
 }
 
 function resetTest() {
+  debugLog('🔄 重置测试...', 'info');
   currentIndex = 0;
   totalScore = 0;
   results = [];
@@ -594,85 +760,8 @@ function getBrowserName() {
   return ua.substring(0, 30);
 }
 
-// ========== 下载本页面 ==========
-function downloadPage() {
-  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '语音识别实验页-20260715.html';
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ========== 下载报告 ==========
-function downloadReport() {
-  const tierNames = ['', '再试一次', '需努力', '良好', '优秀', '完美'];
-  const accuracy = results.filter(r => r.tier >= 3).length;
-  
-  let text = '=== 语音识别实验报告 ===\n';
-  text += `日期：${new Date().toLocaleString('zh-CN')}\n`;
-  text += `浏览器：${getBrowserName()}\n`;
-  text += `平台：${navigator.platform}\n`;
-  text += `语言：${navigator.language}\n`;
-  text += `屏幕：${screen.width}×${screen.height}\n`;
-  text += `\n--- 总分：${totalScore} / 100 ---\n`;
-  text += `达标词数（≥3档）：${accuracy} / ${WORDS.length}\n`;
-  text += `准确率：${Math.round(accuracy / WORDS.length * 100)}%\n`;
-  text += `验收结果：${accuracy >= 8 ? '✅ 达标（≥80%）' : '❌ 未达标（≥80%）'}\n`;
-  text += `\n--- 详细结果 ---\n`;
-  text += '序号\t单词\t字母数\t识别结果\t编辑距离\t相似度\t档位\t得分\n';
-  
-  results.forEach((r, i) => {
-    text += `${i+1}\t${r.word}\t${WORDS[i].word.length}\t"${r.recognized}"\t${r.distance}\t${r.similarity}%\t${tierNames[r.tier]}\t${r.score}分\n`;
-  });
-  
-  text += `\n--- 档位分布 ---\n`;
-  const tierCount = [0,0,0,0,0,0];
-  results.forEach(r => tierCount[r.tier]++);
-  for (let i = 5; i >= 1; i--) {
-    if (tierCount[i] > 0) text += `${tierNames[i]}：${tierCount[i]}个\n`;
-  }
-  
-  text += `\n--- 备注 ---\n`;
-  text += '实验页版本：语音识别实验页-20260715.html\n';
-  text += '判定算法：编辑距离（Levenshtein Distance），不依赖浏览器confidence值\n';
-  text += '短词保护：3字母及以下，编辑距离≤1算4档（优秀）\n';
-  
-  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `语音识别实验报告-${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ========== 环境检测 ==========
-function checkEnvironment() {
-  const warnings = [];
-  
-  // 检测 HTTPS
-  if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-    warnings.push('⚠️ 当前非 HTTPS 环境，语音识别可能无法使用。请通过 HTTPS 或 localhost 访问。');
-  }
-  
-  // 检测联网
-  if (!navigator.onLine) {
-    warnings.push('⚠️ 当前未联网，语音识别需要网络（Chrome/Edge 走 Google 服务器）。');
-  }
-  
-  if (warnings.length > 0) {
-    const warnDiv = document.createElement('div');
-    warnDiv.style.cssText = 'background:rgba(255,152,0,0.15);border:1px solid var(--yellow);border-radius:12px;padding:14px 18px;margin-bottom:16px;font-size:0.85rem;line-height:1.6;color:var(--yellow);';
-    warnDiv.innerHTML = warnings.join('<br>');
-    document.querySelector('.container').insertBefore(warnDiv, document.getElementById('statusBar'));
-  }
-}
-
 // 启动
-checkEnvironment();
+debugLog('📄 页面加载完成', 'success');
 init();
 </script>
 </body>
