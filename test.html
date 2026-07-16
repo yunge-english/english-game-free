@@ -481,8 +481,11 @@ function init() {
 
   recognition.onend = () => {
     debugLog('🏁 识别结束 (onend)', 'event');
-    isStopping = false;  // 解锁：stop() 真正完成了，允许下次 start
-    if (isRecording) stopRecording();
+    // onend 触发时 recognition 已完全停止，只做状态重置，不再调用 stopRecording()
+    // （stopRecording 会调 recognition.stop()，此时再调会报错或卡死）
+    isStopping = false;
+    isRecording = false;
+    document.getElementById('micBtn').classList.remove('recording');
   };
 
   debugLog('✅ 事件监听器绑定完成', 'success');
