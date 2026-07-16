@@ -513,53 +513,58 @@ function levenshtein(a, b) {
   return dp[m][n];
 }
 
-function judge(target, recognized) {
-  target = target.toLowerCase();
-  
-  // 清理识别结果：转小写、去标点、取第一个词
-  recognized = recognized.toLowerCase()
-    .split(/[.,!?\s;:'"()[\]{}]+/)[0]  // 按标点或空格分割，取第一个词
-    .trim();
-
-  debugLog(`🔍 判定: 目标="${target}", 识别="${recognized}"`, 'info');
-
-  if (!recognized) {
-    const result = { tier: 1, score: 2, distance: target.length, similarity: 0 };
-    debugLog(`   - 识别为空 → 1档(${result.score}分)`, 'warn');
-    return result;
-  }
-
+// 计算档位（辅助函数）
+function calcTier(target, recognized) {
   const dist = levenshtein(target, recognized);
   const similarity = Math.round((1 - dist / target.length) * 100);
-  
-  debugLog(`   - 编辑距离: ${dist}`, 'info');
-  debugLog(`   - 相似度: ${similarity}%`, 'info');
-
-  // 短词保护：3字母及以下，距离≤1算4档
-  if (target.length <= 3 && dist <= 1) {
-    debugLog(`   - 短词保护 → 4档(8分)`, 'success');
-    return { tier: 4, score: 8, distance: dist, similarity };
-  }
-
-  if (dist === 0) {
-    debugLog(`   - 完全匹配 → 5档(10分)`, 'success');
-    return { tier: 5, score: 10, distance: 0, similarity: 100 };
-  }
-  if (dist <= target.length * 0.1) {
-    debugLog(`   - 距离≤10% → 4档(8分)`, 'success');
-    return { tier: 4, score: 8, distance: dist, similarity };
-  }
-  if (dist <= target.length * 0.25) {
-    debugLog(`   - 距离≤25% → 3档(6分)`, 'info');
-    return { tier: 3, score: 6, distance: dist, similarity };
-  }
-  if (dist <= target.length * 0.5) {
-    debugLog(`   - 距离≤50% → 2档(4分)`, 'warn');
-    return { tier: 2, score: 4, distance: dist, similarity };
-  }
-  
-  debugLog(`   - 距离>50% → 1档(2分)`, 'warn');
+  if (dist === 0) return { tier: 5, score: 10, distance: dist, similarity: 100 };
+  if (dist <= target.length * 0.1) return { tier: 4, score: 8, distance: dist, similarity };
+  if (dist <= target.length * 0.25) return { tier: 3, score: 6, distance: dist, similarity };
+  if (dist <= target.length * 0.5) return { tier: 2, score: 4, distance: dist, similarity };
   return { tier: 1, score: 2, distance: dist, similarity };
+}
+
+function judge(target, recognized) {
+  target = target.toLowerCase();
+
+  // 清理：去标点转空格
+  let cleaned = recognized.toLowerCase()
+    .replace(/[.,!?;:'"()[\]{}。？！；""''（）]+/g, ' ')
+    .trim();
+
+  debugLog(`🔍 判定: 目标="${target}", 原始识别="${recognized}"`, 'info');
+
+  // no-speech：识别为空
+  if (!cleaned) {
+    debugLog(`   - 识别为空（no-speech）`, 'warn');
+    return { tier: 0, score: 0, distance: 0, similarity: 0, isNoSpeech: true };
+  }
+
+  // 方式①：取首词对比
+  const firstWord = cleaned.split(/\s+/)[0];
+  let result = calcTier(target, firstWord);
+  debugLog(`   - 首词对比: "${firstWord}" → 距离${result.distance} → ${result.tier}档(${result.score}分)`, 'info');
+
+  // 方式②：去空格整体对比（处理"apple→A pole."情况）
+  const noSpace = cleaned.replace(/\s+/g, '');
+  if (noSpace !== firstWord) {
+    const alt = calcTier(target, noSpace);
+    debugLog(`   - 去空格对比: "${noSpace}" → 距离${alt.distance} → ${alt.tier}档(${alt.score}分)`, 'info');
+    if (alt.score > result.score) {
+      result = alt;
+      debugLog(`   - ✅ 去空格更优，采用: ${result.tier}档(${result.score}分)`, 'success');
+    }
+  }
+
+  // 短词保底：3字母及以下，最低3档(6分)
+  if (target.length <= 3 && result.score < 6) {
+    debugLog(`   - 短词保底: ${result.score}分 → 6分(3档)`, 'info');
+    result.score = 6;
+    result.tier = 3;
+  }
+
+  debugLog(`   - 🎯 最终: ${result.tier}档(${result.score}分)`, 'success');
+  return result;
 }
 
 // ========== 录音控制 ==========
@@ -613,7 +618,26 @@ function handleResult(transcript) {
   const current = WORDS[currentIndex];
   const result = judge(current.word, transcript);
 
-  // 显示结果
+  // no-speech 特殊处理：不算分、不消耗次数、不自动跳转
+  if (result.isNoSpeech) {
+    debugLog(`⚠️ 未检测到语音，不消耗次数，请重试`, 'warn');
+    
+    document.getElementById('recognizedText').textContent = '（未检测到语音）';
+    document.getElementById('editDistance').textContent = '-';
+    document.getElementById('similarity').textContent = '-';
+    document.getElementById('wordScore').textContent = '不算分';
+    const badge = document.getElementById('tierBadge');
+    badge.textContent = '💡 未检测到语音，请再试一次';
+    badge.className = 'tier-badge tier-1';
+    document.getElementById('resultArea').classList.add('show');
+    document.getElementById('micHint').textContent = '💡 未检测到语音，请再试一次';
+    
+    // 不自动跳转，重新启用按钮让用户重试
+    document.getElementById('micBtn').disabled = false;
+    return;
+  }
+
+  // 正常结果处理
   document.getElementById('recognizedText').textContent = transcript || '（未识别到）';
   document.getElementById('editDistance').textContent = result.distance;
   document.getElementById('similarity').textContent = result.similarity + '%';
@@ -647,6 +671,7 @@ function handleResult(transcript) {
 
   // 禁用按钮，2秒后自动下一题
   document.getElementById('micBtn').disabled = true;
+  document.getElementById('micHint').textContent = '点击开始录音，再点停止';
   debugLog(`⏳ 2秒后自动进入下一题...`, 'info');
   
   setTimeout(() => {
