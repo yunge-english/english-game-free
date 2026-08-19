@@ -1024,6 +1024,11 @@
                 line-height: 1.4;
             }
         }
+        /* 小屏手机：降低格子最小高度，防止网格溢出 */
+        @media (max-width: 480px) {
+            .grid-cell { min-height: 60px; }
+            .battle-cell { min-height: 60px; }
+        }
 
         /* 数字格子的金黄色粗体样式 */
         .grid-cell .cell-number {
